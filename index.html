@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bursa Shariah Screener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Azeret+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05080f; --surface:#090d17; --card:#0d1220; --card2:#111827;
+  --border:rgba(255,255,255,0.06); --border2:rgba(255,255,255,0.1);
+  --halal:#00d68f; --halal-dim:rgba(0,214,143,0.1); --halal-border:rgba(0,214,143,0.25);
+  --purify:#f5a623; --purify-dim:rgba(245,166,35,0.1); --purify-border:rgba(245,166,35,0.25);
+  --fail:#ff4d4d; --fail-dim:rgba(255,77,77,0.1); --fail-border:rgba(255,77,77,0.22);
+  --nodata:#4b5563; --blue:#4f8fff; --text:#e2e8f4; --muted:#5a6a82; --faint:#1e2d42;
+  --mono:'Azeret Mono',monospace; --sans:'Space Grotesk',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:hidden;min-height:100vh}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--faint);border-radius:4px}
+.grid-bg{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(0,214,143,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,214,143,0.025) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(ellipse 80% 40% at 50% 0%,black,transparent);
+  -webkit-mask-image:radial-gradient(ellipse 80% 40% at 50% 0%,black,transparent);
+}
+nav{
+  position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:0 2.5rem;height:56px;background:rgba(5,8,15,0.88);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:0.75rem}
+.nav-logo{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.16em;color:var(--halal);padding:0.28rem 0.65rem;border:1px solid var(--halal-border);border-radius:3px;background:var(--halal-dim)}
+.nav-title{font-size:0.95rem;font-weight:600;letter-spacing:-0.01em}
+.nav-right{display:flex;align-items:center;gap:1.25rem}
+.nav-meta{font-family:var(--mono);font-size:0.63rem;color:var(--muted)}
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--halal);margin-right:0.4rem;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.main{position:relative;z-index:1;max-width:1380px;margin:0 auto;padding:2.5rem 2rem 5rem}
+.hero{margin-bottom:2.5rem;padding-bottom:2.5rem;border-bottom:1px solid var(--border)}
+.hero-eye{font-family:var(--mono);font-size:0.63rem;letter-spacing:0.2em;color:var(--halal);text-transform:uppercase;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem}
+.hero-eye::before{content:'';width:20px;height:1px;background:var(--halal)}
+.hero-h1{font-size:clamp(2rem,4vw,3rem);font-weight:700;letter-spacing:-0.04em;line-height:1.05;margin-bottom:0.75rem}
+.hero-ghost{color:transparent;-webkit-text-stroke:1px rgba(255,255,255,0.18)}
+.hero-sub{font-size:0.88rem;color:var(--muted);max-width:540px;line-height:1.75}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.5rem;position:relative;overflow:hidden}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0}
+.kpi.k-halal::after{background:var(--halal)}
+.kpi.k-purify::after{background:var(--purify)}
+.kpi.k-fail::after{background:var(--fail)}
+.kpi.k-total::after{background:var(--blue)}
+.kpi-val{font-size:1.9rem;font-weight:700;letter-spacing:-0.04em;line-height:1;margin-bottom:0.3rem}
+.kpi.k-halal .kpi-val{color:var(--halal)}
+.kpi.k-purify .kpi-val{color:var(--purify)}
+.kpi.k-fail .kpi-val{color:var(--fail)}
+.kpi.k-total .kpi-val{color:var(--blue)}
+.kpi-label{font-family:var(--mono);font-size:0.6rem;color:var(--muted);letter-spacing:0.14em;text-transform:uppercase}
+.kpi-sub{font-family:var(--mono);font-size:0.7rem;color:var(--muted);margin-top:0.2rem}
+.charts-row{display:grid;grid-template-columns:320px 1fr;gap:1.25rem;margin-bottom:2rem}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.4rem}
+.panel-label{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--muted);margin-bottom:1.25rem}
+.legend{display:flex;flex-direction:column;gap:0.55rem;margin-top:0.75rem}
+.leg-row{display:flex;align-items:center;justify-content:space-between}
+.leg-left{display:flex;align-items:center;gap:0.5rem;font-size:0.78rem;color:var(--muted)}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.leg-count{font-family:var(--mono);font-size:0.72rem;font-weight:600;color:var(--text)}
+.filter-bar{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:0.9rem 1.1rem;background:var(--card);border:1px solid var(--border);border-radius:10px}
+.filter-pills{display:flex;gap:0.35rem;flex-wrap:wrap}
+.pill{font-family:var(--mono);font-size:0.63rem;letter-spacing:0.08em;padding:0.3rem 0.75rem;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.pill:hover{color:var(--text);border-color:rgba(255,255,255,0.2)}
+.pill.p-all{background:rgba(79,143,255,0.1);color:var(--blue);border-color:rgba(79,143,255,0.3)}
+.pill.p-halal{background:var(--halal-dim);color:var(--halal);border-color:var(--halal-border)}
+.pill.p-purify{background:var(--purify-dim);color:var(--purify);border-color:var(--purify-border)}
+.pill.p-fail{background:var(--fail-dim);color:var(--fail);border-color:var(--fail-border)}
+.pill.p-nodata{background:rgba(75,85,99,0.12);color:#9ca3af;border-color:rgba(75,85,99,0.35)}
+.search-wrap{flex:1;min-width:160px;position:relative}
+.search-ico{position:absolute;left:0.65rem;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:0.8rem}
+.search-in{width:100%;background:var(--card2);border:1px solid var(--border2);border-radius:5px;padding:0.38rem 0.7rem 0.38rem 2rem;font-family:var(--mono);font-size:0.7rem;color:var(--text);outline:none;transition:border-color 0.15s}
+.search-in:focus{border-color:rgba(255,255,255,0.22)}
+.search-in::placeholder{color:var(--muted)}
+.sort-sel{background:var(--card2);border:1px solid var(--border2);border-radius:5px;padding:0.38rem 0.7rem;font-family:var(--mono);font-size:0.68rem;color:var(--muted);outline:none;cursor:pointer}
+.result-count{font-family:var(--mono);font-size:0.63rem;color:var(--muted);margin-left:auto;white-space:nowrap}
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:2rem}
+.tbl-head{display:grid;grid-template-columns:2.2fr 1.2fr 1fr 0.9fr 0.9fr 0.9fr 1fr 0.85fr;padding:0.7rem 1.2rem;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.018)}
+.th{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:0.25rem;user-select:none;transition:color 0.15s;white-space:nowrap}
+.th:hover{color:var(--text)}
+.th.sorted{color:var(--halal)}
+.tbl-body{max-height:500px;overflow-y:auto}
+.tbl-row{display:grid;grid-template-columns:2.2fr 1.2fr 1fr 0.9fr 0.9fr 0.9fr 1fr 0.85fr;padding:0.85rem 1.2rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;align-items:center}
+.tbl-row:last-child{border-bottom:none}
+.tbl-row:hover{background:rgba(255,255,255,0.022)}
+.tbl-row.sel-halal{background:rgba(0,214,143,0.045);border-left:2px solid var(--halal);padding-left:calc(1.2rem - 2px)}
+.tbl-row.sel-purify{background:rgba(245,166,35,0.045);border-left:2px solid var(--purify);padding-left:calc(1.2rem - 2px)}
+.tbl-row.sel-fail{background:rgba(255,77,77,0.035);border-left:2px solid var(--fail);padding-left:calc(1.2rem - 2px)}
+.tbl-row.sel-nodata{background:rgba(75,85,99,0.06);border-left:2px solid var(--nodata);padding-left:calc(1.2rem - 2px)}
+.td{font-size:0.82rem;min-width:0}
+.s-name{font-weight:600;font-size:0.84rem;margin-bottom:0.12rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s-ticker{font-family:var(--mono);font-size:0.6rem;color:var(--muted)}
+.s-sector{font-size:0.72rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mono-td{font-family:var(--mono);font-size:0.7rem}
+.badge{display:inline-flex;align-items:center;gap:0.25rem;font-family:var(--mono);font-size:0.58rem;letter-spacing:0.08em;padding:0.2rem 0.55rem;border-radius:3px;white-space:nowrap;font-weight:500}
+.b-halal{background:var(--halal-dim);color:var(--halal);border:1px solid var(--halal-border)}
+.b-purify{background:var(--purify-dim);color:var(--purify);border:1px solid var(--purify-border)}
+.b-fail{background:var(--fail-dim);color:var(--fail);border:1px solid var(--fail-border)}
+.b-nodata{background:rgba(75,85,99,0.1);color:var(--nodata);border:1px solid rgba(75,85,99,0.28)}
+.ratio-wrap{display:flex;flex-direction:column;gap:3px}
+.ratio-num{font-family:var(--mono);font-size:0.7rem}
+.ratio-track{height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;width:60px}
+.ratio-fill{height:100%;border-radius:2px;transition:width 0.4s ease}
+.detail{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:2rem;animation:slideDown 0.3s ease}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.detail-top{padding:1.6rem 2rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:2rem}
+.detail-name{font-size:1.35rem;font-weight:700;letter-spacing:-0.03em;margin-bottom:0.3rem}
+.detail-meta-row{font-family:var(--mono);font-size:0.66rem;color:var(--muted);display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem}
+.detail-sep{color:var(--faint)}
+.detail-ticker{color:var(--halal)}
+.detail-right{text-align:right;flex-shrink:0}
+.detail-price{font-size:1.5rem;font-weight:700;letter-spacing:-0.04em;line-height:1}
+.detail-mktcap{font-family:var(--mono);font-size:0.66rem;color:var(--muted);margin-top:0.25rem}
+.close-btn{margin-top:0.75rem;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:4px;padding:0.28rem 0.7rem;cursor:pointer;font-family:var(--mono);font-size:0.63rem;transition:color 0.15s}
+.close-btn:hover{color:var(--text)}
+.detail-body{display:grid;grid-template-columns:1fr 1fr 1fr}
+.d-col{padding:1.4rem 2rem;border-right:1px solid var(--border)}
+.d-col:last-child{border-right:none}
+.d-col-title{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.17em;text-transform:uppercase;color:var(--muted);margin-bottom:1.1rem}
+.crit{display:flex;align-items:center;gap:0.65rem;padding:0.65rem 0;border-bottom:1px solid var(--border)}
+.crit:last-of-type{border-bottom:none}
+.crit-ico{font-size:0.88rem;flex-shrink:0;width:1.1rem;text-align:center}
+.crit-lbl{flex:1;font-size:0.8rem;color:#8ea0bc}
+.crit-val{font-family:var(--mono);font-size:0.7rem;font-weight:600}
+.crit-bar-track{margin-top:4px;height:3px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;margin-bottom:2px}
+.crit-bar-fill{height:100%;border-radius:2px;transition:width 0.5s ease}
+.v-box{border-radius:8px;padding:1rem 1.1rem;margin-bottom:0.75rem}
+.v-box-title{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:0.45rem}
+.v-box-val{font-size:1.35rem;font-weight:700;letter-spacing:-0.03em;line-height:1}
+.v-box-sub{font-size:0.73rem;color:var(--muted);margin-top:0.25rem;line-height:1.55}
+.fail-list{display:flex;flex-direction:column;gap:0.1rem}
+.fail-item{display:flex;gap:0.45rem;font-size:0.75rem;color:#fca5a5;line-height:1.5;padding:0.38rem 0;border-bottom:1px solid rgba(255,77,77,0.09)}
+.fail-item:last-child{border-bottom:none}
+.fail-x{color:var(--fail);flex-shrink:0;font-size:0.7rem;padding-top:1px}
+.snap-row{display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid var(--border)}
+.snap-row:last-child{border-bottom:none}
+.snap-key{font-family:var(--mono);font-size:0.65rem;color:var(--muted)}
+.snap-val{font-family:var(--mono);font-size:0.68rem;font-weight:600}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8rem 2rem;gap:1.5rem}
+.spinner{width:36px;height:36px;border:2px solid var(--faint);border-top-color:var(--halal);border-radius:50%;animation:spin 0.75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-txt{font-family:var(--mono);font-size:0.73rem;color:var(--muted);letter-spacing:0.1em}
+.load-sub{font-family:var(--mono);font-size:0.6rem;color:var(--faint)}
+.empty{padding:3rem;text-align:center;color:var(--muted);font-family:var(--mono);font-size:0.75rem}
+.footer{border-top:1px solid var(--border);padding-top:1.5rem;margin-top:1rem;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:0.61rem;color:var(--muted);flex-wrap:wrap;gap:0.5rem}
+.footer-faint{color:var(--faint)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.fu{animation:fadeUp 0.5s ease both}
+.fu1{animation:fadeUp 0.5s 0.1s ease both}
+.fu2{animation:fadeUp 0.5s 0.2s ease both}
+.fu3{animation:fadeUp 0.5s 0.3s ease both}
+@media(max-width:960px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .charts-row{grid-template-columns:1fr}
+  .detail-body{grid-template-columns:1fr}
+  .d-col{border-right:none;border-bottom:1px solid var(--border)}
+  .d-col:last-child{border-bottom:none}
+  .tbl-head,.tbl-row{grid-template-columns:2fr 1fr 1fr 1fr}
+  .tbl-head>div:nth-child(n+5),.tbl-row>div:nth-child(n+5){display:none}
+  nav{padding:0 1rem}
+  .main{padding:1.5rem 1rem 4rem}
+}
+@media(max-width:500px){.kpi-row{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+const API_URL = "http://localhost:8000/api/screen";
+
+function fmtPct(v) { return v == null ? "—" : v.toFixed(1) + "%"; }
+function fmtPrice(v) { return v == null ? "—" : "MYR " + v.toFixed(2); }
+function fmtB(v) { return v == null ? "—" : "MYR " + (v / 1e9).toFixed(2) + "B"; }
+function fmtM(v) { return v == null ? "—" : "MYR " + (v / 1e6).toFixed(0) + "M"; }
+
+const VERDICT_META = {
+  HALAL:         { label: "✓ HALAL",          cls: "b-halal",  selCls: "sel-halal",  pillCls: "p-halal"  },
+  PURIFY:        { label: "◐ PURIFY",         cls: "b-purify", selCls: "sel-purify", pillCls: "p-purify" },
+  NOT_COMPLIANT: { label: "✗ NOT COMPLIANT",  cls: "b-fail",   selCls: "sel-fail",   pillCls: "p-fail"   },
+  NO_DATA:       { label: "? NO DATA",         cls: "b-nodata", selCls: "sel-nodata", pillCls: "p-nodata" },
+};
+function vMeta(v) { return VERDICT_META[v] || VERDICT_META.NO_DATA; }
+function passIco(v) { return v === true ? "✅" : v === false ? "❌" : "⚠️"; }
+
+function RatioCell({ value, threshold = 33, colorPass = "#00d68f", colorFail = "#ff4d4d" }) {
+  if (value == null) return <span style={{ color:"#4b5563", fontFamily:"var(--mono)", fontSize:"0.7rem" }}>—</span>;
+  const pct   = Math.min((value / threshold) * 100, 100);
+  const color = value < threshold ? colorPass : colorFail;
+  return (
+    <div className="ratio-wrap">
+      <span className="ratio-num" style={{ color }}>{fmtPct(value)}</span>
+      <div className="ratio-track">
+        <div className="ratio-fill" style={{ width: pct + "%", background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function Badge({ verdict }) {
+  const m = vMeta(verdict);
+  return <span className={"badge " + m.cls}>{m.label}</span>;
+}
+
+function CritRow({ label, pass, displayValue, ratio, threshold = 33, isInterest = false }) {
+  const baseColor  = pass === false ? "#ff4d4d" : "#00d68f";
+  const valueColor = isInterest && ratio != null && ratio >= 5 ? "#f5a623" : baseColor;
+  const pct        = ratio != null ? Math.min((ratio / threshold) * 100, 100) : 0;
+  return (
+    <div>
+      <div className="crit">
+        <span className="crit-ico">{passIco(pass)}</span>
+        <span className="crit-lbl">{label}</span>
+        <span className="crit-val" style={{ color: valueColor }}>{displayValue}</span>
+      </div>
+      {ratio != null && (
+        <div className="crit-bar-track">
+          <div className="crit-bar-fill" style={{ width: pct + "%", background: valueColor }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DonutChart({ summary }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.Plotly) return;
+    const values = [summary.halal, summary.purify, summary.fail, summary.nodata];
+    const labels = ["Halal", "Purify", "Not Compliant", "No Data"];
+    const colors = ["#00d68f", "#f5a623", "#ff4d4d", "#374151"];
+    const pct = summary.total > 0 ? Math.round(summary.halal / summary.total * 100) : 0;
+    Plotly.newPlot(ref.current,
+      [{ type:"pie", hole:0.65, values, labels,
+         marker:{ colors, line:{ color:"#0d1220", width:2 } },
+         textinfo:"none",
+         hovertemplate:"<b>%{label}</b><br>%{value} stocks (%{percent})<extra></extra>" }],
+      { paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+        margin:{ t:10, b:10, l:10, r:10 }, showlegend:false, height:200,
+        annotations:[{ text:"<b>" + pct + "%</b><br><span style='font-size:9px'>COMPLIANT</span>",
+          x:0.5, y:0.5, showarrow:false,
+          font:{ size:18, color:"#00d68f", family:"Space Grotesk" },
+          xanchor:"center", yanchor:"middle" }] },
+      { displayModeBar:false, responsive:true }
+    );
+    return () => { try { Plotly.purge(ref.current); } catch(e) {} };
+  }, [summary.halal, summary.purify, summary.fail, summary.nodata]);
+
+  const items = [
+    { label:"Halal",         color:"#00d68f", count:summary.halal  },
+    { label:"Purify",        color:"#f5a623", count:summary.purify },
+    { label:"Not Compliant", color:"#ff4d4d", count:summary.fail   },
+    { label:"No Data",       color:"#374151", count:summary.nodata },
+  ].filter(d => d.count > 0);
+
+  return (
+    <div>
+      <div ref={ref} />
+      <div className="legend">
+        {items.map(item => (
+          <div key={item.label} className="leg-row">
+            <div className="leg-left">
+              <div className="leg-dot" style={{ background: item.color }} />
+              <span>{item.label}</span>
+            </div>
+            <span className="leg-count">{item.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DebtChart({ stocks }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.Plotly || !stocks.length) return;
+    const rows = stocks
+      .filter(s => s.debt_ratio != null)
+      .sort((a, b) => a.debt_ratio - b.debt_ratio)
+      .slice(0, 18);
+    const names  = rows.map(s => s.name.length > 12 ? s.name.slice(0, 11) + "…" : s.name);
+    const values = rows.map(s => parseFloat(s.debt_ratio.toFixed(1)));
+    const colors = rows.map(s => s.debt_ratio < 33 ? "#00d68f" : "#ff4d4d");
+    Plotly.newPlot(ref.current,
+      [{ type:"bar", x:names, y:values,
+         marker:{ color:colors, opacity:0.82, line:{ width:0 } },
+         hovertemplate:"<b>%{x}</b><br>Debt Ratio: %{y:.1f}%<extra></extra>" }],
+      { paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", height:220,
+        margin:{ t:8, b:70, l:40, r:8 },
+        xaxis:{ tickfont:{ family:"Azeret Mono", size:9, color:"#5a6a82" }, tickangle:-40,
+          gridcolor:"rgba(0,0,0,0)", linecolor:"rgba(255,255,255,0.06)" },
+        yaxis:{ tickfont:{ family:"Azeret Mono", size:9, color:"#5a6a82" }, ticksuffix:"%",
+          gridcolor:"rgba(255,255,255,0.04)", linecolor:"rgba(0,0,0,0)", zeroline:false },
+        shapes:[{ type:"line", x0:-0.5, x1:names.length - 0.5, y0:33, y1:33,
+          line:{ color:"rgba(245,166,35,0.5)", width:1.5, dash:"dot" } }],
+        annotations:[{ x:names.length - 1, y:33, text:"33% limit", showarrow:false, yshift:10,
+          font:{ family:"Azeret Mono", size:9, color:"#f5a623" }, xanchor:"right" }],
+        bargap:0.35 },
+      { displayModeBar:false, responsive:true }
+    );
+    return () => { try { Plotly.purge(ref.current); } catch(e) {} };
+  }, [stocks]);
+  return <div ref={ref} style={{ width:"100%" }} />;
+}
+
+function DetailPanel({ stock, onClose }) {
+  const fails = Array.isArray(stock.fail_reasons) ? stock.fail_reasons : [];
+  return (
+    <div className="detail">
+      <div className="detail-top">
+        <div>
+          <div className="detail-name">{stock.name}</div>
+          <div className="detail-meta-row">
+            <span className="detail-ticker">{stock.ticker}</span>
+            <span className="detail-sep">·</span>
+            <span>{stock.sector}</span>
+            <span className="detail-sep">·</span>
+            <span>{stock.industry}</span>
+          </div>
+          <Badge verdict={stock.verdict} />
+        </div>
+        <div className="detail-right">
+          <div className="detail-price">{fmtPrice(stock.price)}</div>
+          <div className="detail-mktcap">{stock.market_cap_fmt || "—"}</div>
+          <button className="close-btn" onClick={onClose}>✕ close</button>
+        </div>
+      </div>
+
+      <div className="detail-body">
+        <div className="d-col">
+          <div className="d-col-title">Ratio Analysis</div>
+          <CritRow label="Business Activity" pass={stock.pass_sector}
+            displayValue={stock.pass_sector ? "PASS" : "EXCLUDED"} ratio={null} />
+          <CritRow label="Debt Ratio" pass={stock.pass_debt}
+            displayValue={fmtPct(stock.debt_ratio)} ratio={stock.debt_ratio} />
+          <CritRow label="Cash + Recv. Ratio" pass={stock.pass_cash}
+            displayValue={fmtPct(stock.cash_ratio)} ratio={stock.cash_ratio} />
+          <CritRow label="Interest / Revenue" pass={stock.pass_interest}
+            displayValue={fmtPct(stock.interest_revenue_ratio)}
+            ratio={stock.interest_revenue_ratio} isInterest={true} />
+        </div>
+
+        <div className="d-col">
+          <div className="d-col-title">Verdict Detail</div>
+          {stock.verdict === "HALAL" && (
+            <div className="v-box" style={{ background:"rgba(0,214,143,0.07)", border:"1px solid rgba(0,214,143,0.18)" }}>
+              <div className="v-box-title" style={{ color:"#00d68f" }}>Shariah Status</div>
+              <div className="v-box-val" style={{ color:"#00d68f" }}>✓ Fully Compliant</div>
+              <div className="v-box-sub">Passes all 4 AAOIFI criteria. No purification required.</div>
+            </div>
+          )}
+          {stock.verdict === "PURIFY" && (
+            <div className="v-box" style={{ background:"rgba(245,166,35,0.08)", border:"1px solid rgba(245,166,35,0.22)" }}>
+              <div className="v-box-title" style={{ color:"#f5a623" }}>Purification Required</div>
+              <div className="v-box-val" style={{ color:"#f5a623" }}>
+                {stock.purification_pct != null ? stock.purification_pct.toFixed(2) + "%" : "—"}
+              </div>
+              <div className="v-box-sub">Donate this % of dividend/income to charity to purify the haram portion.</div>
+            </div>
+          )}
+          {stock.verdict === "NOT_COMPLIANT" && fails.length > 0 && (
+            <div>
+              <div style={{ fontFamily:"var(--mono)", fontSize:"0.6rem", letterSpacing:"0.15em",
+                textTransform:"uppercase", color:"#ff4d4d", marginBottom:"0.7rem" }}>
+                Failure Reasons
+              </div>
+              <div className="fail-list">
+                {fails.map((reason, i) => (
+                  <div key={i} className="fail-item">
+                    <span className="fail-x">✗</span>
+                    <span>{reason}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {stock.verdict === "NO_DATA" && (
+            <div className="v-box" style={{ background:"rgba(75,85,99,0.1)", border:"1px solid rgba(75,85,99,0.25)" }}>
+              <div className="v-box-title" style={{ color:"#9ca3af" }}>Insufficient Data</div>
+              <div className="v-box-sub">Financial statements unavailable. Try refreshing or check the ticker manually.</div>
+            </div>
+          )}
+        </div>
+
+        <div className="d-col">
+          <div className="d-col-title">Financials Snapshot</div>
+          {[
+            ["Total Revenue",  fmtB(stock.total_revenue)],
+            ["Total Debt",     fmtB(stock.total_debt)],
+            ["Cash & Equiv.",  fmtB(stock.cash_and_equivalents)],
+            ["Interest Exp.",  fmtM(stock.interest_income_expense)],
+            ["Market Cap",     stock.market_cap_fmt || "—"],
+            ["Currency",       stock.currency || "MYR"],
+          ].map(([k, v]) => (
+            <div key={k} className="snap-row">
+              <span className="snap-key">{k}</span>
+              <span className="snap-val">{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [data,          setData]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [selected,      setSelected]      = useState(null);
+  const [search,        setSearch]        = useState("");
+  const [verdictFilter, setVerdictFilter] = useState("ALL");
+  const [sortKey,       setSortKey]       = useState("name");
+  const [sortAsc,       setSortAsc]       = useState(true);
+  const [cachedAt,      setCachedAt]      = useState(null);
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    fetch(API_URL)
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(json => {
+        setData(json);
+        setCachedAt(json.cached_at ? new Date(json.cached_at * 1000).toLocaleTimeString() : null);
+      })
+      .catch(() => { setData(getMockData()); setCachedAt("demo mode"); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const stocks  = data?.stocks  || [];
+  const summary = data?.summary || { total:0, halal:0, purify:0, fail:0, nodata:0 };
+
+  const filtered = useMemo(() => {
+    let s = [...stocks];
+    if (verdictFilter !== "ALL") s = s.filter(x => x.verdict === verdictFilter);
+    if (search) {
+      const q = search.toLowerCase();
+      s = s.filter(x =>
+        x.name.toLowerCase().includes(q) ||
+        x.ticker.toLowerCase().includes(q) ||
+        (x.sector || "").toLowerCase().includes(q)
+      );
+    }
+    s.sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey];
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "string") { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (av === bv) return 0;
+      return sortAsc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+    return s;
+  }, [stocks, verdictFilter, search, sortKey, sortAsc]);
+
+  function handleSort(key) {
+    if (sortKey === key) setSortAsc(p => !p);
+    else { setSortKey(key); setSortAsc(true); }
+  }
+
+  const PILLS = [
+    { id:"ALL",           label:"All",             cls:"p-all"    },
+    { id:"HALAL",         label:"✓ Halal",         cls:"p-halal"  },
+    { id:"PURIFY",        label:"◐ Purify",        cls:"p-purify" },
+    { id:"NOT_COMPLIANT", label:"✗ Not Compliant", cls:"p-fail"   },
+    { id:"NO_DATA",       label:"? No Data",       cls:"p-nodata" },
+  ];
+
+  const COLS = [
+    { key:"name",                   label:"Company"    },
+    { key:"sector",                 label:"Sector"     },
+    { key:"verdict",                label:"Verdict"    },
+    { key:"debt_ratio",             label:"Debt %"     },
+    { key:"cash_ratio",             label:"Cash %"     },
+    { key:"interest_revenue_ratio", label:"Interest %"  },
+    { key:"market_cap_fmt",         label:"Mkt Cap"    },
+    { key:"price",                  label:"Price"      },
+  ];
+
+  if (loading) return (
+    <div>
+      <nav>
+        <div className="nav-brand">
+          <span className="nav-logo">AAOIFI</span>
+          <span className="nav-title">Bursa Shariah Screener</span>
+        </div>
+      </nav>
+      <div className="main">
+        <div className="loading">
+          <div className="spinner" />
+          <div className="load-txt">fetching bursa data via yahoo finance…</div>
+          <div className="load-sub">~30s on first load · cached for 1 hour</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <nav>
+        <div className="nav-brand">
+          <span className="nav-logo">AAOIFI</span>
+          <span className="nav-title">Bursa Shariah Screener</span>
+        </div>
+        <div className="nav-right">
+          {cachedAt && <span className="nav-meta"><span className="live-dot" />data at {cachedAt}</span>}
+          <button className="close-btn" style={{ marginTop:0 }} onClick={fetchData}>↻ refresh</button>
+        </div>
+      </nav>
+
+      <div className="main">
+        <div className="hero fu">
+          <div className="hero-eye">Bursa Malaysia · KLSE · Free Screener</div>
+          <h1 className="hero-h1">
+            Shariah Compliant<br />
+            <span className="hero-ghost">Stock Screener</span>
+          </h1>
+          <p className="hero-sub">
+            Free, open-source AAOIFI screening for KLSE stocks — debt ratios, cash thresholds,
+            business activity exclusions, and revenue purification all in one place.
+          </p>
+        </div>
+
+        <div className="kpi-row fu1">
+          <div className="kpi k-total">
+            <div className="kpi-val">{summary.total}</div>
+            <div className="kpi-label">Stocks Screened</div>
+          </div>
+          <div className="kpi k-halal">
+            <div className="kpi-val">{summary.halal}</div>
+            <div className="kpi-label">Shariah Compliant</div>
+            <div className="kpi-sub">{summary.total > 0 ? Math.round(summary.halal / summary.total * 100) : 0}% of universe</div>
+          </div>
+          <div className="kpi k-purify">
+            <div className="kpi-val">{summary.purify}</div>
+            <div className="kpi-label">Requires Purification</div>
+          </div>
+          <div className="kpi k-fail">
+            <div className="kpi-val">{summary.fail}</div>
+            <div className="kpi-label">Not Compliant</div>
+          </div>
+        </div>
+
+        <div className="charts-row fu2">
+          <div className="panel">
+            <div className="panel-label">Verdict Breakdown</div>
+            <DonutChart summary={summary} />
+          </div>
+          <div className="panel">
+            <div className="panel-label">Debt Ratio by Stock (33% threshold)</div>
+            <DebtChart stocks={stocks} />
+          </div>
+        </div>
+
+        {selected && <DetailPanel stock={selected} onClose={() => setSelected(null)} />}
+
+        <div className="filter-bar fu3">
+          <div className="filter-pills">
+            {PILLS.map(p => (
+              <button key={p.id}
+                className={"pill" + (verdictFilter === p.id ? " " + p.cls : "")}
+                onClick={() => { setVerdictFilter(p.id); setSelected(null); }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="search-wrap">
+            <span className="search-ico">⌕</span>
+            <input className="search-in" placeholder="Search name, ticker, sector…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setSelected(null); }} />
+          </div>
+          <select className="sort-sel" value={sortKey}
+            onChange={e => { setSortKey(e.target.value); setSortAsc(true); }}>
+            <option value="name">Sort: Name</option>
+            <option value="verdict">Sort: Verdict</option>
+            <option value="debt_ratio">Sort: Debt Ratio</option>
+            <option value="interest_revenue_ratio">Sort: Interest %</option>
+            <option value="market_cap">Sort: Market Cap</option>
+          </select>
+          <span className="result-count">{filtered.length} stocks</span>
+        </div>
+
+        <div className="tbl-wrap fu3">
+          <div className="tbl-head">
+            {COLS.map(col => (
+              <div key={col.key}
+                className={"th" + (sortKey === col.key ? " sorted" : "")}
+                onClick={() => handleSort(col.key)}>
+                {col.label}&nbsp;
+                <span style={{ color: sortKey === col.key ? "var(--halal)" : "var(--faint)" }}>
+                  {sortKey === col.key ? (sortAsc ? "↑" : "↓") : "⇅"}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="tbl-body">
+            {filtered.length === 0
+              ? <div className="empty">No stocks match the current filter.</div>
+              : filtered.map(stock => {
+                  const isSel  = selected?.ticker === stock.ticker;
+                  const selCls = isSel ? " " + vMeta(stock.verdict).selCls : "";
+                  const intPassColor = stock.interest_revenue_ratio != null && stock.interest_revenue_ratio >= 5
+                    ? "#f5a623" : "#00d68f";
+                  return (
+                    <div key={stock.ticker} className={"tbl-row" + selCls}
+                      onClick={() => setSelected(isSel ? null : stock)}>
+                      <div className="td">
+                        <div className="s-name">{stock.name}</div>
+                        <div className="s-ticker">{stock.ticker}</div>
+                      </div>
+                      <div className="td s-sector">{stock.sector}</div>
+                      <div className="td"><Badge verdict={stock.verdict} /></div>
+                      <div className="td"><RatioCell value={stock.debt_ratio} /></div>
+                      <div className="td"><RatioCell value={stock.cash_ratio} /></div>
+                      <div className="td"><RatioCell value={stock.interest_revenue_ratio} colorPass={intPassColor} /></div>
+                      <div className="td mono-td">{stock.market_cap_fmt || "—"}</div>
+                      <div className="td mono-td">{fmtPrice(stock.price)}</div>
+                    </div>
+                  );
+                })
+            }
+          </div>
+        </div>
+
+        <div className="footer">
+          <span>Bursa Shariah Screener · Built by Ikhmal · Kuala Lumpur</span>
+          <span>Methodology: AAOIFI Financial Accounting Standards</span>
+          <span className="footer-faint">Not financial advice · Data: Yahoo Finance</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getMockData() {
+  const stocks = [
+    { ticker:"4707.KL", name:"Nestle Malaysia",    sector:"Consumer Defensive",    industry:"Packaged Foods",           price:65.20, market_cap:15300000000, market_cap_fmt:"MYR 15.30B", currency:"MYR", debt_ratio:8.2,  cash_ratio:5.1,  interest_revenue_ratio:0.4,  purification_pct:0.4,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"HALAL",         fail_reasons:[], total_revenue:6800000000,  total_debt:1254600000, cash_and_equivalents:780300000,  interest_income_expense:27200000   },
+    { ticker:"7084.KL", name:"QL Resources",        sector:"Consumer Defensive",    industry:"Farm Products",             price:5.60,  market_cap:6800000000,  market_cap_fmt:"MYR 6.80B",  currency:"MYR", debt_ratio:21.3, cash_ratio:9.8,  interest_revenue_ratio:1.2,  purification_pct:1.2,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"HALAL",         fail_reasons:[], total_revenue:5100000000,  total_debt:1448400000, cash_and_equivalents:666400000,  interest_income_expense:61200000   },
+    { ticker:"5225.KL", name:"IHH Healthcare",      sector:"Healthcare",            industry:"Medical Facilities",        price:6.80,  market_cap:60100000000, market_cap_fmt:"MYR 60.10B", currency:"MYR", debt_ratio:18.4, cash_ratio:7.3,  interest_revenue_ratio:6.8,  purification_pct:6.8,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"PURIFY",        fail_reasons:[], total_revenue:18200000000, total_debt:11058400000,cash_and_equivalents:4387300000, interest_income_expense:1237600000 },
+    { ticker:"5347.KL", name:"Tenaga Nasional",     sector:"Utilities",             industry:"Regulated Electric",        price:13.20, market_cap:75400000000, market_cap_fmt:"MYR 75.40B", currency:"MYR", debt_ratio:38.6, cash_ratio:4.2,  interest_revenue_ratio:4.1,  purification_pct:4.1,  pass_sector:true,  pass_debt:false, pass_cash:true,  pass_interest:true,  verdict:"NOT_COMPLIANT", fail_reasons:["Debt ratio 38.6% exceeds 33%"], total_revenue:51800000000, total_debt:29104400000,cash_and_equivalents:3166800000, interest_income_expense:2123800000  },
+    { ticker:"1155.KL", name:"Maybank",             sector:"Financial Services",    industry:"Banks",                     price:9.50,  market_cap:107200000000,market_cap_fmt:"MYR 107.20B",currency:"MYR", debt_ratio:null, cash_ratio:null, interest_revenue_ratio:72.4, purification_pct:72.4, pass_sector:false, pass_debt:null,  pass_cash:null,  pass_interest:false, verdict:"NOT_COMPLIANT", fail_reasons:["Excluded sector/activity: Financial Services","Interest income 72.4% exceeds 33% hard limit"], total_revenue:32400000000, total_debt:null,       cash_and_equivalents:null,       interest_income_expense:23457600000},
+    { ticker:"3182.KL", name:"Genting Berhad",      sector:"Consumer Cyclical",     industry:"Resorts & Casinos",         price:4.20,  market_cap:16100000000, market_cap_fmt:"MYR 16.10B", currency:"MYR", debt_ratio:62.1, cash_ratio:34.8, interest_revenue_ratio:3.2,  purification_pct:3.2,  pass_sector:false, pass_debt:false, pass_cash:false, pass_interest:true,  verdict:"NOT_COMPLIANT", fail_reasons:["Excluded sector/activity: gambling"], total_revenue:9800000000,  total_debt:9998100000, cash_and_equivalents:5602800000, interest_income_expense:313600000  },
+    { ticker:"0166.KL", name:"Inari Amertron",      sector:"Technology",            industry:"Semiconductor Equipment",   price:2.95,  market_cap:9700000000,  market_cap_fmt:"MYR 9.70B",  currency:"MYR", debt_ratio:4.1,  cash_ratio:10.2, interest_revenue_ratio:0.8,  purification_pct:0.8,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"HALAL",         fail_reasons:[], total_revenue:2100000000,  total_debt:397700000,  cash_and_equivalents:989400000,  interest_income_expense:16800000   },
+    { ticker:"5168.KL", name:"Hartalega",           sector:"Healthcare",            industry:"Medical Instruments",       price:2.20,  market_cap:7500000000,  market_cap_fmt:"MYR 7.50B",  currency:"MYR", debt_ratio:9.8,  cash_ratio:6.4,  interest_revenue_ratio:2.1,  purification_pct:2.1,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"HALAL",         fail_reasons:[], total_revenue:2800000000,  total_debt:735000000,  cash_and_equivalents:480000000,  interest_income_expense:58800000   },
+    { ticker:"7081.KL", name:"Pharmaniaga",         sector:"Healthcare",            industry:"Drug Manufacturers",        price:0.95,  market_cap:1040000000,  market_cap_fmt:"MYR 1.04B",  currency:"MYR", debt_ratio:52.9, cash_ratio:null, interest_revenue_ratio:8.4,  purification_pct:8.4,  pass_sector:true,  pass_debt:false, pass_cash:null,  pass_interest:true,  verdict:"NOT_COMPLIANT", fail_reasons:["Debt ratio 52.9% exceeds 33%"], total_revenue:2600000000,  total_debt:550160000,  cash_and_equivalents:null,       interest_income_expense:218400000  },
+    { ticker:"5263.KL", name:"Sunway Construction", sector:"Industrials",           industry:"Engineering & Construction",price:3.80,  market_cap:4900000000,  market_cap_fmt:"MYR 4.90B",  currency:"MYR", debt_ratio:7.3,  cash_ratio:15.6, interest_revenue_ratio:1.4,  purification_pct:1.4,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"HALAL",         fail_reasons:[], total_revenue:3100000000,  total_debt:357700000,  cash_and_equivalents:764400000,  interest_income_expense:43400000   },
+    { ticker:"6888.KL", name:"Axiata Group",        sector:"Communication Services",industry:"Telecom Services",          price:2.45,  market_cap:22400000000, market_cap_fmt:"MYR 22.40B", currency:"MYR", debt_ratio:41.5, cash_ratio:8.9,  interest_revenue_ratio:11.2, purification_pct:11.2, pass_sector:true,  pass_debt:false, pass_cash:true,  pass_interest:true,  verdict:"NOT_COMPLIANT", fail_reasons:["Debt ratio 41.5% exceeds 33%"], total_revenue:26800000000, total_debt:9296000000, cash_and_equivalents:1993600000, interest_income_expense:3001600000 },
+    { ticker:"7052.KL", name:"Padini Holdings",     sector:"Consumer Cyclical",     industry:"Apparel Retail",            price:3.10,  market_cap:2040000000,  market_cap_fmt:"MYR 2.04B",  currency:"MYR", debt_ratio:3.2,  cash_ratio:16.8, interest_revenue_ratio:0.3,  purification_pct:0.3,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"HALAL",         fail_reasons:[], total_revenue:1680000000,  total_debt:65280000,   cash_and_equivalents:342720000,  interest_income_expense:5040000    },
+    { ticker:"7277.KL", name:"Dialog Group",        sector:"Energy",                industry:"Oil & Gas Services",        price:2.10,  market_cap:12100000000, market_cap_fmt:"MYR 12.10B", currency:"MYR", debt_ratio:14.2, cash_ratio:8.1,  interest_revenue_ratio:2.3,  purification_pct:2.3,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"HALAL",         fail_reasons:[], total_revenue:4200000000,  total_debt:1718200000, cash_and_equivalents:980100000,  interest_income_expense:96600000   },
+    { ticker:"5878.KL", name:"KPJ Healthcare",      sector:"Healthcare",            industry:"Medical Facilities",        price:1.85,  market_cap:7900000000,  market_cap_fmt:"MYR 7.90B",  currency:"MYR", debt_ratio:22.8, cash_ratio:4.6,  interest_revenue_ratio:5.9,  purification_pct:5.9,  pass_sector:true,  pass_debt:true,  pass_cash:true,  pass_interest:true,  verdict:"PURIFY",        fail_reasons:[], total_revenue:4600000000,  total_debt:1801200000, cash_and_equivalents:363400000,  interest_income_expense:271400000  },
+  ];
+  return {
+    stocks,
+    summary: {
+      total:  stocks.length,
+      halal:  stocks.filter(s => s.verdict === "HALAL").length,
+      purify: stocks.filter(s => s.verdict === "PURIFY").length,
+      fail:   stocks.filter(s => s.verdict === "NOT_COMPLIANT").length,
+      nodata: stocks.filter(s => s.verdict === "NO_DATA").length,
+    },
+    cached_at: Date.now() / 1000,
+  };
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
